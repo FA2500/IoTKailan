@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "415617746349",
+    "firebase_url": "https://iot-hkkailan-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "iot-hkkailan",
+    "storage_bucket": "iot-hkkailan.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:415617746349:android:08e49982bae91f93b64d24",
+        "android_client_info": {
+          "package_name": "com.example.iotkailan"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "415617746349-4jpa878i3crf7bnv2h9a9j2ntuufib2h.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.iotkailan",
+            "certificate_hash": "228063da3f7a4c77ce6348d8038fc059d24a177d"
+          }
+        },
+        {
+          "client_id": "415617746349-rto2ipq28352te6h31d8hcgv3uclckrq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB75IKbbTGKq9JpiPB2YLfxo1_K4WbLcqk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "415617746349-rto2ipq28352te6h31d8hcgv3uclckrq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
