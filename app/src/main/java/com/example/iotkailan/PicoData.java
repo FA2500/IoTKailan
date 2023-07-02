@@ -9,12 +9,15 @@ public class PicoData {
     String water1;
     String water2;
 
+    String waterlevel;
+
+
     public PicoData()
     {
 
     }
 
-    public PicoData(String humidity1, String humidity2, String moisture, String temperature1, String temperature2, String water1, String water2) {
+    public PicoData(String humidity1, String humidity2, String moisture, String temperature1, String temperature2, String water1, String water2,String waterlevel) {
         this.humidity1 = humidity1;
         this.humidity2 = humidity2;
         this.moisture = moisture;
@@ -22,6 +25,7 @@ public class PicoData {
         this.temperature2 = temperature2;
         this.water1 = water1;
         this.water2 = water2;
+        this.waterlevel = waterlevel;
     }
 
     public String getHumidity1() {
@@ -78,6 +82,14 @@ public class PicoData {
 
     public void setWater2(String water2) {
         this.water2 = water2;
+    }
+
+    public String getWaterlevel() {
+        return waterlevel;
+    }
+
+    public void setWaterlevel(String waterlevel) {
+        this.waterlevel = waterlevel;
     }
 
 }

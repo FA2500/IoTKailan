@@ -1,11 +1,18 @@
 package com.example.iotkailan;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 import android.annotation.SuppressLint;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
@@ -18,16 +25,27 @@ import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
+import com.google.android.gms.tasks.Continuation;
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.functions.FirebaseFunctions;
+import com.google.firebase.functions.FirebaseFunctionsException;
+import com.google.firebase.functions.HttpsCallableResult;
+import com.google.firebase.messaging.FirebaseMessaging;
 
 import java.util.ArrayList;
 import java.util.Dictionary;
+import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Map;
+
+import android.Manifest;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -43,6 +61,11 @@ public class MainActivity extends AppCompatActivity {
     private Button temp2B;
     private Button moistB;
 
+    //controller
+    private Button fanBtn,servoBtn,pump1Btn,pump2Btn;
+
+    private Button waterlvlB;
+
     private Button clearData;
 
     FirebaseDatabase database = FirebaseDatabase.getInstance("https://iot-hkkailan-default-rtdb.asia-southeast1.firebasedatabase.app");
@@ -56,12 +79,14 @@ public class MainActivity extends AppCompatActivity {
     private List<Entry> tempEntries2 = new ArrayList<Entry>();
     private List<Entry> moistEntries = new ArrayList<Entry>();
 
+    private List<Entry> levelEntries = new ArrayList<Entry>();
+
     //Handler
     private Handler handler;
     private boolean dataReceived = false;
     private boolean isFirstTime = true;
 
-    private final Boolean[] elementCheck = {false, false, false, false, false, false, false};
+    private final Boolean[] elementCheck = {false, false, false, false, false, false, false, false};
     private int counter = 0;
 
     /**
@@ -72,10 +97,14 @@ public class MainActivity extends AppCompatActivity {
      * 4 = temp1
      * 5 = temp2
      * 6 = moist
+     * 7 = level
      **/
 
 
     private ValueEventListener valueEventListener;
+    private ValueEventListener valueEventListener2;
+
+    private FirebaseFunctions mFunctions = FirebaseFunctions.getInstance("asia-southeast1");
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,6 +112,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         initUI();
+        initFCM();
         initBtn();
         initData();
         getDbData();
@@ -91,11 +121,72 @@ public class MainActivity extends AppCompatActivity {
         startTimer();
     }
 
+    private final ActivityResultLauncher<String> requestPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                if (isGranted) {
+                    // FCM SDK (and your app) can post notifications.
+                } else {
+                    // TODO: Inform user that that your app will not show notifications.
+                }
+            });
+
+    private void initFCM()
+    {
+        // This is only necessary for API level >= 33 (TIRAMISU)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+                    PackageManager.PERMISSION_GRANTED) {
+                // FCM SDK (and your app) can post notifications.
+            } /*else if (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+                // TODO: display an educational UI explaining to the user the features that will be enabled
+                //       by them granting the POST_NOTIFICATION permission. This UI should provide the user
+                //       "OK" and "No thanks" buttons. If the user selects "OK," directly request the permission.
+                //       If the user selects "No thanks," allow the user to continue without notifications.
+            }*/ else {
+                // Directly ask for the permission
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+            }
+        }
+
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Create channel to show notifications.
+            String channelId  = getString(R.string.default_notification_channel_id);
+            String channelName = "Fcm notifications";
+            NotificationManager notificationManager =
+                    getSystemService(NotificationManager.class);
+            notificationManager.createNotificationChannel(new NotificationChannel(channelId,
+                    channelName, NotificationManager.IMPORTANCE_LOW));
+        }
+
+        FirebaseMessaging.getInstance().getToken()
+                .addOnCompleteListener(new OnCompleteListener<String>() {
+                    @Override
+                    public void onComplete(@NonNull Task<String> task) {
+                        if (!task.isSuccessful()) {
+                            Log.w("TEST", "Fetching FCM registration token failed", task.getException());
+                            return;
+                        }
+
+                        // Get new FCM registration token
+                        String token = task.getResult();
+
+                        // Log and toast
+                        //String msg = getString(R.string.app_name, token);
+                        Log.d("TEST", token);
+                        //Toast.makeText(MainActivity.this, token, Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+
     @Override
     protected void onStart() {
         super.onStart();
         DatabaseReference databaseRef = FirebaseDatabase.getInstance().getReference("sensor/pico/");
         databaseRef.addValueEventListener(valueEventListener);
+        DatabaseReference databaseReference = FirebaseDatabase.getInstance().getReference("control");
+        databaseReference.addValueEventListener(valueEventListener2);
     }
 
     @Override
@@ -103,6 +194,8 @@ public class MainActivity extends AppCompatActivity {
         super.onStop();
         DatabaseReference databaseRef = FirebaseDatabase.getInstance().getReference("sensor/pico/");
         databaseRef.removeEventListener(valueEventListener);
+        DatabaseReference databaseReference = FirebaseDatabase.getInstance().getReference("control");
+        databaseReference.removeEventListener(valueEventListener2);
     }
 
     private void initBtn()
@@ -114,19 +207,26 @@ public class MainActivity extends AppCompatActivity {
         temp1B = findViewById(R.id.temp1Btn);
         temp2B = findViewById(R.id.temp2Btn);
         moistB = findViewById(R.id.moistBtn);
+        waterlvlB = findViewById(R.id.waterlvlBtn);
         clearData = findViewById(R.id.removeDataBtn);
+
+        //cont
+        fanBtn = findViewById(R.id.fanBtn);
+        servoBtn = findViewById(R.id.servoBtn);
+        pump1Btn = findViewById(R.id.pump1Btn);
+        pump2Btn = findViewById(R.id.pump2Btn);
 
         rain1B.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Button a = new Button(MainActivity.this);
                 if(!elementCheck[0])
                 {
+                    rain1B.setText("On");
                     elementCheck[0] = true;
                 }
                 else
                 {
-                    a.setText("OFF");
+                    rain1B.setText("OFF");
                     elementCheck[0] = false;
                 }
             }
@@ -135,14 +235,14 @@ public class MainActivity extends AppCompatActivity {
         rain2B.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Button a = new Button(MainActivity.this);
                 if(!elementCheck[1])
                 {
+                    rain2B.setText("On");
                     elementCheck[1] = true;
                 }
                 else
                 {
-                    a.setText("OFF");
+                    rain2B.setText("OFF");
                     elementCheck[1] = false;
                 }
             }
@@ -151,14 +251,14 @@ public class MainActivity extends AppCompatActivity {
         humi1B.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Button a = new Button(MainActivity.this);
                 if(!elementCheck[2])
                 {
+                    humi1B.setText("On");
                     elementCheck[2] = true;
                 }
                 else
                 {
-                    a.setText("OFF");
+                    humi1B.setText("OFF");
                     elementCheck[2] = false;
                 }
             }
@@ -167,14 +267,14 @@ public class MainActivity extends AppCompatActivity {
         humi2B.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Button a = new Button(MainActivity.this);
                 if(!elementCheck[3])
                 {
+                    humi2B.setText("On");
                     elementCheck[3] = true;
                 }
                 else
                 {
-                    a.setText("OFF");
+                    humi2B.setText("OFF");
                     elementCheck[3] = false;
                 }
             }
@@ -183,14 +283,14 @@ public class MainActivity extends AppCompatActivity {
         temp1B.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Button a = new Button(MainActivity.this);
                 if(!elementCheck[4])
                 {
+                    temp1B.setText("On");
                     elementCheck[4] = true;
                 }
                 else
                 {
-                    a.setText("OFF");
+                    temp1B.setText("OFF");
                     elementCheck[4] = false;
                 }
             }
@@ -199,14 +299,14 @@ public class MainActivity extends AppCompatActivity {
         temp2B.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Button a = new Button(MainActivity.this);
                 if(!elementCheck[5])
                 {
+                    temp2B.setText("On");
                     elementCheck[5] = true;
                 }
                 else
                 {
-                    a.setText("OFF");
+                    temp2B.setText("OFF");
                     elementCheck[5] = false;
                 }
             }
@@ -215,16 +315,74 @@ public class MainActivity extends AppCompatActivity {
         moistB.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Button a = new Button(MainActivity.this);
                 if(!elementCheck[6])
                 {
+                    moistB.setText("On");
                     elementCheck[6] = true;
                 }
                 else
                 {
-                    a.setText("OFF");
+                    moistB.setText("OFF");
                     elementCheck[6] = false;
                 }
+            }
+        });
+
+        waterlvlB.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(!elementCheck[7])
+                {
+                    waterlvlB.setText("On");
+                    elementCheck[7] = true;
+                }
+                else
+                {
+                    waterlvlB.setText("OFF");
+                    elementCheck[7] = false;
+                }
+            }
+        });
+
+        fanBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ffunc("fanplant1android");
+            }
+        });
+
+        /*servoBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mFunctions
+                        .getHttpsCallable("servoOpen")
+                        .call()
+                        .continueWith(new Continuation<HttpsCallableResult, String>()
+                        {
+                            @Override
+                            public String then(@NonNull Task<HttpsCallableResult> task) throws Exception {
+                                // This continuation runs on either success or failure, but if the task
+                                // has failed then getResult() will throw an Exception which will be
+                                // propagated down.
+                                Toast.makeText(MainActivity.this, "Servo have been turned, wait for telegram message to appear to confirm your action.", Toast.LENGTH_SHORT).show();
+                                return "200";
+                            }
+                        });
+
+            }
+        });*/
+
+        pump1Btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ffunc("waterplant1android");
+            }
+        });
+
+        pump2Btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ffunc("waterplant2android");
             }
         });
 
@@ -243,6 +401,25 @@ public class MainActivity extends AppCompatActivity {
                 counter = 0;
             }
         });
+    }
+
+    private Task<String> ffunc(String text) {
+        // Create the arguments to the callable function.
+        Map<String, Object> data = new HashMap<>();
+        data.put("text", text);
+
+        return mFunctions
+                .getHttpsCallable(text)
+                .call(data)
+                .continueWith(new Continuation<HttpsCallableResult, String>() {
+                    @Override
+                    public String then(@NonNull Task<HttpsCallableResult> task) throws Exception {
+                        Log.d("TEST","res = "+task.getResult().toString());
+                        Toast.makeText(MainActivity.this, text+" is turned on, wait for telegram message to appear to confirm your action.", Toast.LENGTH_SHORT).show();
+                        String result = (String) task.getResult().getData();
+                        return result;
+                    }
+                });
     }
 
     private void initUI()
@@ -416,6 +593,17 @@ public class MainActivity extends AppCompatActivity {
                 rainChart.setData(lineRainData);
                 rainChart.invalidate();
                 counter++;
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+
+            }
+        };
+        valueEventListener2 = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                PicoController value = snapshot.getValue(PicoController.class);
             }
 
             @Override
