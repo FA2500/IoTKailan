@@ -10,7 +10,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:415617746349:android:08e49982bae91f93b64d24",
         "android_client_info": {
-          "package_name": "com.example.iotkailan"
+          "package_name": "my.afc.iotBRSpinach"
         }
       },
       "oauth_client": [
@@ -18,7 +18,7 @@
           "client_id": "415617746349-4jpa878i3crf7bnv2h9a9j2ntuufib2h.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.iotkailan",
+            "package_name": "my.afc.iotBRSpinach",
             "certificate_hash": "228063da3f7a4c77ce6348d8038fc059d24a177d"
           }
         },

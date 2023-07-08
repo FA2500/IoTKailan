@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'com.example.iotkailan'
+    namespace 'my.afc.iotBRSpinach'
     compileSdk 33
 
     defaultConfig {
-        applicationId "com.example.iotkailan"
+        applicationId "my.afc.iotBRSpinach"
         minSdk 24
         targetSdk 33
         versionCode 1
